@@ -27,45 +27,28 @@ const ParkingMap = ({
   const normalizeGeometry = (geometry) => {
     if (!geometry || !geometry.type) return null;
 
-    console.log('Normalizing geometry:', geometry.type, geometry);
-
     if (geometry.type === 'Point' && Array.isArray(geometry.coordinates)) {
       const [lng, lat] = geometry.coordinates;
-      const result = {
+      return {
         type: 'LineString',
         coordinates: [
           [lng - 0.00015, lat],
           [lng + 0.00015, lat]
         ]
       };
-      console.log('Converted Point to LineString:', result);
-      return result;
     }
 
     if (geometry.type === 'MultiPoint' && Array.isArray(geometry.coordinates) && geometry.coordinates[0]) {
       const [lng, lat] = geometry.coordinates[0];
-      const result = {
+      return {
         type: 'LineString',
         coordinates: [
           [lng - 0.00015, lat],
           [lng + 0.00015, lat]
         ]
       };
-      console.log('Converted MultiPoint to LineString:', result);
-      return result;
     }
 
-    if (geometry.type === 'Polygon' && Array.isArray(geometry.coordinates)) {
-      console.log('Keeping Polygon geometry:', geometry);
-      return geometry;
-    }
-
-    if (geometry.type === 'LineString' && Array.isArray(geometry.coordinates)) {
-      console.log('Keeping LineString geometry:', geometry);
-      return geometry;
-    }
-
-    console.log('Unknown geometry type, returning as-is:', geometry);
     return geometry;
   };
 
@@ -247,10 +230,7 @@ const ParkingMap = ({
     map.current.addControl(new maplibregl.NavigationControl(), 'top-right');
 
     map.current.on('load', () => {
-      console.log('Map loaded, adding sources and layers');
-
       if (!map.current.getSource('parking-zones-source')) {
-        console.log('Adding parking-zones-source');
         try {
           map.current.addSource('parking-zones-source', {
             type: 'geojson',
@@ -259,12 +239,10 @@ const ParkingMap = ({
               features: []
             }
           });
-          console.log('Successfully added parking-zones-source');
         } catch (error) {
           console.error('Error adding parking-zones-source:', error);
         }
 
-        console.log('Adding parking-zones-fill layer');
         try {
           map.current.addLayer({
             id: 'parking-zones-fill',
@@ -290,12 +268,10 @@ const ParkingMap = ({
               'fill-antialias': true
             }
           });
-          console.log('Successfully added parking-zones-fill layer');
         } catch (error) {
           console.error('Error adding parking-zones-fill layer:', error);
         }
 
-        console.log('Adding parking-zones-line layer');
         try {
           map.current.addLayer({
             id: 'parking-zones-line',
@@ -325,7 +301,6 @@ const ParkingMap = ({
               'line-opacity': 0.9
             }
           });
-          console.log('Successfully added parking-zones-line layer');
         } catch (error) {
           console.error('Error adding parking-zones-line layer:', error);
         }
@@ -397,14 +372,6 @@ const ParkingMap = ({
         addUserLocationMarker();
       }
 
-      // Force a resize to ensure proper rendering
-      setTimeout(() => {
-        if (map.current) {
-          map.current.resize();
-          console.log('Map resized');
-        }
-      }, 100);
-
       setMapReady(true);
     });
 
@@ -419,17 +386,16 @@ const ParkingMap = ({
 
   useEffect(() => {
     if (!map.current || !mapReady) {
-      console.log('Map not ready yet, skipping zone update');
       return;
     }
     
     const source = map.current.getSource('parking-zones-source');
     if (!source) {
-      console.log('Parking zones source not found');
+      console.warn('[Map] Parking zones source not found');
       return;
     }
 
-    console.log('Adding parking zones to map:', parkingZones.length);
+    console.log('[Map] Updating map with', parkingZones.length, 'zones');
 
     const features = parkingZones.map((zone) => {
       const delta = 0.0012;
@@ -447,8 +413,6 @@ const ParkingMap = ({
           [zone.lng + delta, zone.lat]
         ]
       };
-
-      console.log('Zone geometry:', zone.name, geometry);
 
       return {
         type: 'Feature',
@@ -468,15 +432,13 @@ const ParkingMap = ({
       };
     });
 
-    console.log('Setting map data with features:', features.length);
-    const geoJsonData = { type: 'FeatureCollection', features };
-    console.log('GeoJSON data:', JSON.stringify(geoJsonData, null, 2));
+    console.log('[Map] Setting map data with', features.length, 'features');
     
     try {
-      source.setData(geoJsonData);
-      console.log('Successfully set map data');
+      source.setData({ type: 'FeatureCollection', features });
+      console.log('[Map] Successfully set map data');
     } catch (error) {
-      console.error('Error setting map data:', error);
+      console.error('[Map] Error setting map data:', error);
     }
   }, [parkingZones, mapReady]);
 

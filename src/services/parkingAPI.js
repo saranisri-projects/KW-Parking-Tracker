@@ -9,7 +9,7 @@ const WATERLOO_API_BASE = 'https://services1.arcgis.com/qAo1OsXi67t7XgmS/arcgis/
 
 export const fetchWaterlooParking = async () => {
   try {
-    console.log('Fetching Waterloo parking data...');
+    console.log('[API] Fetching Waterloo parking data...');
     
     // On-street parking endpoint
     const response = await axios.get(
@@ -24,7 +24,7 @@ export const fetchWaterlooParking = async () => {
       }
     );
 
-    console.log(`Found ${response.data.features.length} Waterloo zones`);
+    console.log('[API] Found', response.data.features.length, 'Waterloo zones');
 
     // Transform the data to our app format
     const zones = response.data.features.map((feature, index) => {
@@ -32,13 +32,6 @@ export const fetchWaterlooParking = async () => {
       const geom = feature.geometry;
       const geometry = convertArcGISGeometry(geom);
       const center = getGeometryCenter(geometry) || { lat: geom.y, lng: geom.x };
-      
-      console.log(`Waterloo zone ${index}:`, {
-        attributes: attrs,
-        geometry: geom,
-        convertedGeometry: geometry,
-        center
-      });
       
       return {
         id: `waterloo-${attrs.OBJECTID || index}`,
@@ -58,7 +51,7 @@ export const fetchWaterlooParking = async () => {
     return zones.filter(zone => zone.lat && zone.lng); // Remove invalid coordinates
     
   } catch (error) {
-    console.error('Error fetching Waterloo data:', error);
+    console.error('[API] Error fetching Waterloo data:', error.message);
     return [];
   }
 };
@@ -247,41 +240,32 @@ function parseTimeLimit(timeLimitStr) {
 }
 
 function convertArcGISGeometry(geom) {
-  console.log('Converting ArcGIS geometry:', geom);
-  
   if (!geom) return null;
 
   if (geom.rings) {
     const rings = geom.rings.filter(Boolean);
     if (!rings.length) return null;
-    const result = {
+    return {
       type: 'Polygon',
       coordinates: rings
     };
-    console.log('Converted rings to Polygon:', result);
-    return result;
   }
 
   if (geom.paths) {
     const paths = geom.paths.filter(Boolean);
     if (!paths.length) return null;
-    const result = paths.length === 1
+    return paths.length === 1
       ? { type: 'LineString', coordinates: paths[0] }
       : { type: 'MultiLineString', coordinates: paths };
-    console.log('Converted paths to LineString/MultiLineString:', result);
-    return result;
   }
 
   if (typeof geom.x === 'number' && typeof geom.y === 'number') {
-    const result = {
+    return {
       type: 'Point',
       coordinates: [geom.x, geom.y]
     };
-    console.log('Converted x/y to Point:', result);
-    return result;
   }
 
-  console.log('Unknown geometry format:', geom);
   return null;
 }
 
@@ -354,6 +338,10 @@ export const fetchAllParkingData = async () => {
       fetchTorontoParking()
     ]);
     
+    console.log('[API] Waterloo zones:', waterlooZones.length);
+    console.log('[API] Kitchener zones:', kitchenerZones.length);
+    console.log('[API] Toronto zones:', torontoZones.length);
+    
     // Combine all zones
     const allZones = [
       ...waterlooZones,
@@ -367,15 +355,12 @@ export const fetchAllParkingData = async () => {
       id: index + 1
     }));
     
-    console.log(`Total zones loaded: ${zonesWithIds.length}`);
-    console.log(`- Waterloo: ${waterlooZones.length}`);
-    console.log(`- Kitchener: ${kitchenerZones.length}`);
-    console.log(`- Toronto: ${torontoZones.length}`);
+    console.log('[API] Total zones loaded:', zonesWithIds.length);
     
     return zonesWithIds;
     
   } catch (error) {
-    console.error('Error fetching parking data:', error);
+    console.error('[API] Error fetching parking data:', error.message);
     return [];
   }
 };

@@ -41,31 +41,65 @@ const ParkingTrackerApp = () => {
   const requestLocationAccess = () => {
     setLocationError('');
     if (navigator.geolocation) {
+      // First, try getCurrentPosition which will trigger permission prompt on mobile
       navigator.geolocation.getCurrentPosition(
-        updateCurrentLocation,
+        (position) => {
+          console.log('[Geolocation] Got location:', position.coords);
+          updateCurrentLocation(position);
+          setLocationError('');
+          
+          // Once we have permission, start watching position
+          navigator.geolocation.watchPosition(
+            updateCurrentLocation,
+            (error) => {
+              console.error('[Geolocation] Error watching location:', error.code, error.message);
+              if (error.code === 1) { // PERMISSION_DENIED
+                setLocationError('Location access was denied. Check your browser settings.');
+              } else if (error.code === 2) { // POSITION_UNAVAILABLE
+                setLocationError('Your location is unavailable. Check GPS/location settings.');
+              } else if (error.code === 3) { // TIMEOUT
+                setLocationError('Location request timed out.');
+              }
+            },
+            {
+              enableHighAccuracy: true,
+              maximumAge: 5000,
+              timeout: 15000
+            }
+          );
+        },
         (error) => {
-          if (error.code === error.PERMISSION_DENIED) {
-            setLocationError('Location permission denied. Allow location access in your browser settings and refresh.');
+          console.error('[Geolocation] Error getting current position:', error.code, error.message);
+          if (error.code === 1) { // PERMISSION_DENIED
+            setLocationError('Location permission denied. Allow location access in your browser settings and try again.');
+          } else if (error.code === 2) { // POSITION_UNAVAILABLE  
+            setLocationError('Your location is unavailable. Enable location services and try again.');
+          } else if (error.code === 3) { // TIMEOUT
+            setLocationError('Location request timed out. Try again.');
           } else {
-            setLocationError('Unable to access location. Try again or use a different browser.');
+            setLocationError('Unable to access your location. Try again.');
           }
         },
-        { enableHighAccuracy: true, timeout: 10000 }
+        {
+          enableHighAccuracy: true,
+          maximumAge: 0,
+          timeout: 10000
+        }
       );
     } else {
-      setLocationError('Geolocation not supported by this browser.');
+      setLocationError('Geolocation is not supported by your browser.');
     }
   };
 
   // Fallback zones if APIs fail
   const getFallbackZones = () => {
     return [
-      { id: 1, name: 'King St W - Downtown Kitchener', type: 'paid', timeLimit: 120, lat: 43.4516, lng: -80.4925, rate: 2.50 },
-      { id: 2, name: 'Victoria St - Uptown Waterloo', type: 'paid', timeLimit: 180, lat: 43.4643, lng: -80.5204, rate: 2.00 },
-      { id: 3, name: 'Duke St - Downtown Kitchener', type: 'free', timeLimit: 60, lat: 43.4501, lng: -80.4897 },
-      { id: 4, name: 'Caroline St - Waterloo', type: 'free', timeLimit: 120, lat: 43.4647, lng: -80.5164 },
-      { id: 5, name: 'Weber St - No Parking Zone', type: 'no-parking', lat: 43.4489, lng: -80.4947 },
-      { id: 6, name: 'University Ave - Waterloo', type: 'permit', timeLimit: null, lat: 43.4723, lng: -80.5449 },
+      { id: 1, name: 'King St W - Downtown Kitchener', type: 'paid', timeLimit: 120, lat: 43.4516, lng: -80.4925, rate: 2.50, area: 'Kitchener', source: 'Fallback', lastUpdated: new Date().toISOString() },
+      { id: 2, name: 'Victoria St - Uptown Waterloo', type: 'paid', timeLimit: 180, lat: 43.4643, lng: -80.5204, rate: 2.00, area: 'Waterloo', source: 'Fallback', lastUpdated: new Date().toISOString() },
+      { id: 3, name: 'Duke St - Downtown Kitchener', type: 'free', timeLimit: 60, lat: 43.4501, lng: -80.4897, area: 'Kitchener', source: 'Fallback', lastUpdated: new Date().toISOString() },
+      { id: 4, name: 'Caroline St - Waterloo', type: 'free', timeLimit: 120, lat: 43.4647, lng: -80.5164, area: 'Waterloo', source: 'Fallback', lastUpdated: new Date().toISOString() },
+      { id: 5, name: 'Weber St - No Parking Zone', type: 'no-parking', lat: 43.4489, lng: -80.4947, area: 'Kitchener', source: 'Fallback', lastUpdated: new Date().toISOString() },
+      { id: 6, name: 'University Ave - Waterloo', type: 'permit', timeLimit: null, lat: 43.4723, lng: -80.5449, area: 'Waterloo', source: 'Fallback', lastUpdated: new Date().toISOString() },
     ];
   };
 
@@ -73,28 +107,32 @@ const ParkingTrackerApp = () => {
   useEffect(() => {
     const loadParkingZones = async () => {
       setLoadingZones(true);
+      console.log('[Zone Loading] Starting to load zones...');
       
       // Try to use cached data first
       const cachedZones = getCachedZones();
       
       if (cachedZones && cachedZones.length > 0) {
-        console.log('Using cached parking zones');
+        console.log('[Zone Loading] Using cached zones, count:', cachedZones.length);
         setParkingZones(cachedZones);
         setLoadingZones(false);
         return;
       }
       
       // If no cache, fetch from APIs
-      console.log('No cache found, fetching from APIs...');
+      console.log('[Zone Loading] No cache found, fetching from APIs...');
       const zones = await fetchAllParkingData();
+      console.log('[Zone Loading] Fetched zones from API, count:', zones.length);
       
       if (zones.length > 0) {
+        console.log('[Zone Loading] Using API zones');
         setParkingZones(zones);
         setCachedZones(zones); // Cache for next time
       } else {
         // If API fails, use fallback data
-        console.log('API fetch failed, using fallback data');
-        setParkingZones(getFallbackZones());
+        const fallback = getFallbackZones();
+        console.log('[Zone Loading] API fetch failed, using fallback data, count:', fallback.length);
+        setParkingZones(fallback);
       }
       
       setLoadingZones(false);
@@ -139,33 +177,23 @@ const ParkingTrackerApp = () => {
       startTimer(session);
     }
 
-    let watchId = null;
+    // Set default fallback location
+    setCurrentLocation({ lat: 43.4516, lng: -80.4925 });
+
+    // Try to get initial location if permission was already granted
     if (navigator.geolocation) {
-      watchId = navigator.geolocation.watchPosition(
+      navigator.geolocation.getCurrentPosition(
         updateCurrentLocation,
         (error) => {
-          console.error('Error watching location:', error.code, error.message);
-          if (error.code === error.PERMISSION_DENIED) {
-            setLocationError('Location permission denied. Please allow location access in your browser.');
-          } else if (error.code === error.POSITION_UNAVAILABLE) {
-            setLocationError('Location unavailable. Try again in an area with better GPS coverage.');
-          } else if (error.code === error.TIMEOUT) {
-            setLocationError('Location request timed out. Try refreshing the page.');
-          } else {
-            setLocationError('Unable to get location. Using fallback coordinates.');
-          }
-
-          setCurrentLocation({ lat: 43.4516, lng: -80.4925 });
+          console.log('[Geolocation] getCurrentPosition error:', error.code);
+          // Don't show error on initial load - let user click retry button
         },
         {
-          enableHighAccuracy: true,
-          maximumAge: 5000,
-          timeout: 10000
+          enableHighAccuracy: false,
+          maximumAge: 60000, // Use cached position up to 1 minute
+          timeout: 5000
         }
       );
-    } else {
-      setLocationError('Geolocation is not supported by this browser.');
-      setCurrentLocation({ lat: 43.4516, lng: -80.4925 });
     }
 
     // Request notification permission
@@ -176,9 +204,6 @@ const ParkingTrackerApp = () => {
     return () => {
       if (timerIntervalRef.current) {
         clearInterval(timerIntervalRef.current);
-      }
-      if (watchId !== null && navigator.geolocation) {
-        navigator.geolocation.clearWatch(watchId);
       }
     };
   }, []);
