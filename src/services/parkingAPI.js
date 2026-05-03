@@ -368,7 +368,8 @@ export const fetchAllParkingData = async () => {
 // CACHE FUNCTIONS (optional but recommended)
 // ========================================
 
-const CACHE_KEY = 'parking_zones_cache';
+const CACHE_VERSION = 2;
+const CACHE_KEY = 'parking_zones_cache_v2';
 const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
 
 export const getCachedZones = () => {
@@ -377,7 +378,7 @@ export const getCachedZones = () => {
     if (!cached) return null;
     
     const parsed = JSON.parse(cached);
-    if (!parsed || !Array.isArray(parsed.zones)) {
+    if (!parsed || parsed.version !== CACHE_VERSION || !Array.isArray(parsed.zones)) {
       localStorage.removeItem(CACHE_KEY);
       return null;
     }
@@ -417,6 +418,7 @@ export const getCachedZones = () => {
 export const setCachedZones = (zones) => {
   try {
     const cacheData = {
+      version: CACHE_VERSION,
       zones,
       timestamp: Date.now()
     };

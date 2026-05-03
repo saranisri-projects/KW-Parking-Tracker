@@ -38,6 +38,25 @@ const ParkingTrackerApp = () => {
   const [searchError, setSearchError] = useState('');
   const [locationError, setLocationError] = useState('');
 
+  const requestLocationAccess = () => {
+    setLocationError('');
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        updateCurrentLocation,
+        (error) => {
+          if (error.code === error.PERMISSION_DENIED) {
+            setLocationError('Location permission denied. Allow location access in your browser settings and refresh.');
+          } else {
+            setLocationError('Unable to access location. Try again or use a different browser.');
+          }
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    } else {
+      setLocationError('Geolocation not supported by this browser.');
+    }
+  };
+
   // Fallback zones if APIs fail
   const getFallbackZones = () => {
     return [
@@ -1122,9 +1141,23 @@ const ParkingTrackerApp = () => {
               padding: '14px 18px',
               background: 'rgba(220, 38, 38, 0.14)',
               border: '1px solid rgba(248, 113, 113, 0.3)',
-              color: '#fee2e2'
+              color: '#fee2e2',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '12px'
             }}>
-              <strong>Location warning:</strong> {locationError}
+              <div>
+                <strong>Location warning:</strong> {locationError}
+              </div>
+              <button
+                className="btn btn-secondary"
+                type="button"
+                onClick={requestLocationAccess}
+                style={{ whiteSpace: 'nowrap' }}
+              >
+                Retry location
+              </button>
             </div>
           )}
           <div style={{

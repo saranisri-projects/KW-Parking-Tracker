@@ -24,6 +24,34 @@ const ParkingMap = ({
   const defaultCenter = currentLocation || { lat: 43.4516, lng: -80.4925 };
   const defaultZoom = 14;
 
+  const normalizeGeometry = (geometry) => {
+    if (!geometry || !geometry.type) return null;
+
+    if (geometry.type === 'Point' && Array.isArray(geometry.coordinates)) {
+      const [lng, lat] = geometry.coordinates;
+      return {
+        type: 'LineString',
+        coordinates: [
+          [lng - 0.00015, lat],
+          [lng + 0.00015, lat]
+        ]
+      };
+    }
+
+    if (geometry.type === 'MultiPoint' && Array.isArray(geometry.coordinates) && geometry.coordinates[0]) {
+      const [lng, lat] = geometry.coordinates[0];
+      return {
+        type: 'LineString',
+        coordinates: [
+          [lng - 0.00015, lat],
+          [lng + 0.00015, lat]
+        ]
+      };
+    }
+
+    return geometry;
+  };
+
   const getZoneColor = (type) => {
     switch (type) {
       case 'free': return '#10b981';
@@ -351,7 +379,14 @@ const ParkingMap = ({
 
     const features = parkingZones.map((zone) => {
       const delta = 0.0012;
-      const geometry = zone.geometry || {
+      const rawGeometry = zone.geometry || {
+        type: 'LineString',
+        coordinates: [
+          [zone.lng - delta, zone.lat],
+          [zone.lng + delta, zone.lat]
+        ]
+      };
+      const geometry = normalizeGeometry(rawGeometry) || {
         type: 'LineString',
         coordinates: [
           [zone.lng - delta, zone.lat],
