@@ -27,28 +27,45 @@ const ParkingMap = ({
   const normalizeGeometry = (geometry) => {
     if (!geometry || !geometry.type) return null;
 
+    console.log('Normalizing geometry:', geometry.type, geometry);
+
     if (geometry.type === 'Point' && Array.isArray(geometry.coordinates)) {
       const [lng, lat] = geometry.coordinates;
-      return {
+      const result = {
         type: 'LineString',
         coordinates: [
           [lng - 0.00015, lat],
           [lng + 0.00015, lat]
         ]
       };
+      console.log('Converted Point to LineString:', result);
+      return result;
     }
 
     if (geometry.type === 'MultiPoint' && Array.isArray(geometry.coordinates) && geometry.coordinates[0]) {
       const [lng, lat] = geometry.coordinates[0];
-      return {
+      const result = {
         type: 'LineString',
         coordinates: [
           [lng - 0.00015, lat],
           [lng + 0.00015, lat]
         ]
       };
+      console.log('Converted MultiPoint to LineString:', result);
+      return result;
     }
 
+    if (geometry.type === 'Polygon' && Array.isArray(geometry.coordinates)) {
+      console.log('Keeping Polygon geometry:', geometry);
+      return geometry;
+    }
+
+    if (geometry.type === 'LineString' && Array.isArray(geometry.coordinates)) {
+      console.log('Keeping LineString geometry:', geometry);
+      return geometry;
+    }
+
+    console.log('Unknown geometry type, returning as-is:', geometry);
     return geometry;
   };
 
@@ -230,68 +247,88 @@ const ParkingMap = ({
     map.current.addControl(new maplibregl.NavigationControl(), 'top-right');
 
     map.current.on('load', () => {
+      console.log('Map loaded, adding sources and layers');
+
       if (!map.current.getSource('parking-zones-source')) {
-        map.current.addSource('parking-zones-source', {
-          type: 'geojson',
-          data: {
-            type: 'FeatureCollection',
-            features: []
-          }
-        });
+        console.log('Adding parking-zones-source');
+        try {
+          map.current.addSource('parking-zones-source', {
+            type: 'geojson',
+            data: {
+              type: 'FeatureCollection',
+              features: []
+            }
+          });
+          console.log('Successfully added parking-zones-source');
+        } catch (error) {
+          console.error('Error adding parking-zones-source:', error);
+        }
 
-        map.current.addLayer({
-          id: 'parking-zones-fill',
-          type: 'fill',
-          source: 'parking-zones-source',
-          paint: {
-            'fill-color': [
-              'match',
-              ['get', 'type'],
-              'free', '#10b981',
-              'paid', '#f59e0b',
-              'no-parking', '#ef4444',
-              'permit', '#8b5cf6',
-              '#6b7280'
-            ],
-            'fill-opacity': [
-              'match',
-              ['get', 'type'],
-              'no-parking', 0.4,
-              0.22
-            ],
-            'fill-outline-color': '#ffffff',
-            'fill-antialias': true
-          }
-        });
+        console.log('Adding parking-zones-fill layer');
+        try {
+          map.current.addLayer({
+            id: 'parking-zones-fill',
+            type: 'fill',
+            source: 'parking-zones-source',
+            paint: {
+              'fill-color': [
+                'match',
+                ['get', 'type'],
+                'free', '#10b981',
+                'paid', '#f59e0b',
+                'no-parking', '#ef4444',
+                'permit', '#8b5cf6',
+                '#6b7280'
+              ],
+              'fill-opacity': [
+                'match',
+                ['get', 'type'],
+                'no-parking', 0.4,
+                0.22
+              ],
+              'fill-outline-color': '#ffffff',
+              'fill-antialias': true
+            }
+          });
+          console.log('Successfully added parking-zones-fill layer');
+        } catch (error) {
+          console.error('Error adding parking-zones-fill layer:', error);
+        }
 
-        map.current.addLayer({
-          id: 'parking-zones-line',
-          type: 'line',
-          source: 'parking-zones-source',
-          layout: {
-            'line-join': 'round',
-            'line-cap': 'round'
-          },
-          paint: {
-            'line-color': [
-              'match',
-              ['get', 'type'],
-              'free', '#10b981',
-              'paid', '#f59e0b',
-              'no-parking', '#ef4444',
-              'permit', '#8b5cf6',
-              '#6b7280'
-            ],
-            'line-width': [
-              'interpolate',
-              ['linear'],
-              ['zoom'],
-              12, 3,
-              16, 6
-            ],
-            'line-opacity': 0.9
-          }
-        });
+        console.log('Adding parking-zones-line layer');
+        try {
+          map.current.addLayer({
+            id: 'parking-zones-line',
+            type: 'line',
+            source: 'parking-zones-source',
+            layout: {
+              'line-join': 'round',
+              'line-cap': 'round'
+            },
+            paint: {
+              'line-color': [
+                'match',
+                ['get', 'type'],
+                'free', '#10b981',
+                'paid', '#f59e0b',
+                'no-parking', '#ef4444',
+                'permit', '#8b5cf6',
+                '#6b7280'
+              ],
+              'line-width': [
+                'interpolate',
+                ['linear'],
+                ['zoom'],
+                12, 3,
+                16, 6
+              ],
+              'line-opacity': 0.9
+            }
+          });
+          console.log('Successfully added parking-zones-line layer');
+        } catch (error) {
+          console.error('Error adding parking-zones-line layer:', error);
+        }
 
         map.current.addSource('parked-route-source', {
           type: 'geojson',
@@ -360,6 +397,14 @@ const ParkingMap = ({
         addUserLocationMarker();
       }
 
+      // Force a resize to ensure proper rendering
+      setTimeout(() => {
+        if (map.current) {
+          map.current.resize();
+          console.log('Map resized');
+        }
+      }, 100);
+
       setMapReady(true);
     });
 
@@ -373,9 +418,18 @@ const ParkingMap = ({
   /* eslint-enable react-hooks/exhaustive-deps */
 
   useEffect(() => {
-    if (!map.current || !mapReady) return;
+    if (!map.current || !mapReady) {
+      console.log('Map not ready yet, skipping zone update');
+      return;
+    }
+    
     const source = map.current.getSource('parking-zones-source');
-    if (!source) return;
+    if (!source) {
+      console.log('Parking zones source not found');
+      return;
+    }
+
+    console.log('Adding parking zones to map:', parkingZones.length);
 
     const features = parkingZones.map((zone) => {
       const delta = 0.0012;
@@ -393,6 +447,8 @@ const ParkingMap = ({
           [zone.lng + delta, zone.lat]
         ]
       };
+
+      console.log('Zone geometry:', zone.name, geometry);
 
       return {
         type: 'Feature',
@@ -412,7 +468,16 @@ const ParkingMap = ({
       };
     });
 
-    source.setData({ type: 'FeatureCollection', features });
+    console.log('Setting map data with features:', features.length);
+    const geoJsonData = { type: 'FeatureCollection', features };
+    console.log('GeoJSON data:', JSON.stringify(geoJsonData, null, 2));
+    
+    try {
+      source.setData(geoJsonData);
+      console.log('Successfully set map data');
+    } catch (error) {
+      console.error('Error setting map data:', error);
+    }
   }, [parkingZones, mapReady]);
 
   /* eslint-disable react-hooks/exhaustive-deps */

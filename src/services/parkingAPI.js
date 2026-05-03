@@ -33,6 +33,13 @@ export const fetchWaterlooParking = async () => {
       const geometry = convertArcGISGeometry(geom);
       const center = getGeometryCenter(geometry) || { lat: geom.y, lng: geom.x };
       
+      console.log(`Waterloo zone ${index}:`, {
+        attributes: attrs,
+        geometry: geom,
+        convertedGeometry: geometry,
+        center
+      });
+      
       return {
         id: `waterloo-${attrs.OBJECTID || index}`,
         name: buildStreetName(attrs),
@@ -240,32 +247,41 @@ function parseTimeLimit(timeLimitStr) {
 }
 
 function convertArcGISGeometry(geom) {
+  console.log('Converting ArcGIS geometry:', geom);
+  
   if (!geom) return null;
 
   if (geom.rings) {
     const rings = geom.rings.filter(Boolean);
     if (!rings.length) return null;
-    return {
+    const result = {
       type: 'Polygon',
       coordinates: rings
     };
+    console.log('Converted rings to Polygon:', result);
+    return result;
   }
 
   if (geom.paths) {
     const paths = geom.paths.filter(Boolean);
     if (!paths.length) return null;
-    return paths.length === 1
+    const result = paths.length === 1
       ? { type: 'LineString', coordinates: paths[0] }
       : { type: 'MultiLineString', coordinates: paths };
+    console.log('Converted paths to LineString/MultiLineString:', result);
+    return result;
   }
 
   if (typeof geom.x === 'number' && typeof geom.y === 'number') {
-    return {
+    const result = {
       type: 'Point',
       coordinates: [geom.x, geom.y]
     };
+    console.log('Converted x/y to Point:', result);
+    return result;
   }
 
+  console.log('Unknown geometry format:', geom);
   return null;
 }
 
