@@ -376,20 +376,40 @@ export const getCachedZones = () => {
     const cached = localStorage.getItem(CACHE_KEY);
     if (!cached) return null;
     
-    const { zones, timestamp } = JSON.parse(cached);
-    const age = Date.now() - timestamp;
-    
-    if (age > CACHE_DURATION) {
-      // Cache expired
+    const parsed = JSON.parse(cached);
+    if (!parsed || !Array.isArray(parsed.zones)) {
       localStorage.removeItem(CACHE_KEY);
       return null;
     }
-    
+
+    const { zones, timestamp } = parsed;
+    const age = Date.now() - timestamp;
+
+    if (age > CACHE_DURATION) {
+      localStorage.removeItem(CACHE_KEY);
+      return null;
+    }
+
+    const validZones = zones.filter(zone => (
+      zone &&
+      typeof zone.lat === 'number' &&
+      typeof zone.lng === 'number' &&
+      typeof zone.name === 'string' &&
+      typeof zone.type === 'string'
+    ));
+
+    if (validZones.length !== zones.length) {
+      console.warn('Cached parking zone data is invalid or stale. Fetching fresh data.');
+      localStorage.removeItem(CACHE_KEY);
+      return null;
+    }
+
     console.log(`Using cached data (${Math.round(age / 1000 / 60)} minutes old)`);
     return zones;
     
   } catch (error) {
     console.error('Error reading cache:', error);
+    localStorage.removeItem(CACHE_KEY);
     return null;
   }
 };

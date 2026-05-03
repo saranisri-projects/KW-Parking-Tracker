@@ -36,6 +36,7 @@ const ParkingTrackerApp = () => {
   const [searchLocation, setSearchLocation] = useState(null);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState('');
+  const [locationError, setLocationError] = useState('');
 
   // Fallback zones if APIs fail
   const getFallbackZones = () => {
@@ -124,10 +125,18 @@ const ParkingTrackerApp = () => {
       watchId = navigator.geolocation.watchPosition(
         updateCurrentLocation,
         (error) => {
-          console.error('Error watching location:', error);
-          if (!currentLocation) {
-            setCurrentLocation({ lat: 43.4516, lng: -80.4925 });
+          console.error('Error watching location:', error.code, error.message);
+          if (error.code === error.PERMISSION_DENIED) {
+            setLocationError('Location permission denied. Please allow location access in your browser.');
+          } else if (error.code === error.POSITION_UNAVAILABLE) {
+            setLocationError('Location unavailable. Try again in an area with better GPS coverage.');
+          } else if (error.code === error.TIMEOUT) {
+            setLocationError('Location request timed out. Try refreshing the page.');
+          } else {
+            setLocationError('Unable to get location. Using fallback coordinates.');
           }
+
+          setCurrentLocation({ lat: 43.4516, lng: -80.4925 });
         },
         {
           enableHighAccuracy: true,
@@ -136,6 +145,7 @@ const ParkingTrackerApp = () => {
         }
       );
     } else {
+      setLocationError('Geolocation is not supported by this browser.');
       setCurrentLocation({ lat: 43.4516, lng: -80.4925 });
     }
 
@@ -1105,6 +1115,18 @@ const ParkingTrackerApp = () => {
               <p style={{ marginTop: '12px', color: '#cbd5e1', lineHeight: 1.6 }}>{warningPopupMessage}</p>
             </div>
           )}
+          {locationError && (
+            <div style={{
+              marginBottom: '18px',
+              borderRadius: '16px',
+              padding: '14px 18px',
+              background: 'rgba(220, 38, 38, 0.14)',
+              border: '1px solid rgba(248, 113, 113, 0.3)',
+              color: '#fee2e2'
+            }}>
+              <strong>Location warning:</strong> {locationError}
+            </div>
+          )}
           <div style={{
             display: 'flex',
             flexWrap: 'wrap',
@@ -1230,6 +1252,11 @@ const ParkingTrackerApp = () => {
                       {currentLocation && parkingSession.lat && parkingSession.lng && (
                         <div style={{ color: '#cbd5e1' }}>
                           Distance: {formatDistance(calculateDistanceKm(currentLocation.lat, currentLocation.lng, parkingSession.lat, parkingSession.lng))}
+                        </div>
+                      )}
+                      {locationError && (
+                        <div style={{ color: '#fca5a5', fontSize: '0.95rem' }}>
+                          {locationError}
                         </div>
                       )}
                       <div style={{ color: '#cbd5e1' }}>
