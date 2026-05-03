@@ -38,57 +38,69 @@ const ParkingTrackerApp = () => {
   const [searchError, setSearchError] = useState('');
   const [locationError, setLocationError] = useState('');
 
-  const requestLocationAccess = () => {
+  const requestLocationAccess = async () => {
     setLocationError('');
-    if (navigator.geolocation) {
-      // First, try getCurrentPosition which will trigger permission prompt on mobile
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          console.log('[Geolocation] Got location:', position.coords);
-          updateCurrentLocation(position);
-          setLocationError('');
-          
-          // Once we have permission, start watching position
-          navigator.geolocation.watchPosition(
-            updateCurrentLocation,
-            (error) => {
-              console.error('[Geolocation] Error watching location:', error.code, error.message);
-              if (error.code === 1) { // PERMISSION_DENIED
-                setLocationError('Location access was denied. Check your browser settings.');
-              } else if (error.code === 2) { // POSITION_UNAVAILABLE
-                setLocationError('Your location is unavailable. Check GPS/location settings.');
-              } else if (error.code === 3) { // TIMEOUT
-                setLocationError('Location request timed out.');
-              }
-            },
-            {
-              enableHighAccuracy: true,
-              maximumAge: 5000,
-              timeout: 15000
-            }
-          );
-        },
-        (error) => {
-          console.error('[Geolocation] Error getting current position:', error.code, error.message);
-          if (error.code === 1) { // PERMISSION_DENIED
-            setLocationError('Location permission denied. Allow location access in your browser settings and try again.');
-          } else if (error.code === 2) { // POSITION_UNAVAILABLE  
-            setLocationError('Your location is unavailable. Enable location services and try again.');
-          } else if (error.code === 3) { // TIMEOUT
-            setLocationError('Location request timed out. Try again.');
-          } else {
-            setLocationError('Unable to access your location. Try again.');
-          }
-        },
-        {
-          enableHighAccuracy: true,
-          maximumAge: 0,
-          timeout: 10000
-        }
-      );
-    } else {
+
+    if (!navigator.geolocation) {
       setLocationError('Geolocation is not supported by your browser.');
+      return;
     }
+
+    if (navigator.permissions && navigator.permissions.query) {
+      try {
+        const status = await navigator.permissions.query({ name: 'geolocation' });
+        if (status.state === 'denied') {
+          setLocationError('Geolocation is blocked. Please enable location permissions in your browser settings.');
+          return;
+        }
+      } catch (err) {
+        // Permission API not fully supported, continue with geolocation request
+      }
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        console.log('[Geolocation] Got location:', position.coords);
+        updateCurrentLocation(position);
+        setLocationError('');
+
+        navigator.geolocation.watchPosition(
+          updateCurrentLocation,
+          (error) => {
+            console.error('[Geolocation] Error watching location:', error.code, error.message);
+            if (error.code === 1) {
+              setLocationError('Location access was denied. Check your browser settings.');
+            } else if (error.code === 2) {
+              setLocationError('Your location is unavailable. Check GPS/location settings.');
+            } else if (error.code === 3) {
+              setLocationError('Location request timed out.');
+            }
+          },
+          {
+            enableHighAccuracy: true,
+            maximumAge: 5000,
+            timeout: 15000
+          }
+        );
+      },
+      (error) => {
+        console.error('[Geolocation] Error getting current position:', error.code, error.message);
+        if (error.code === 1) {
+          setLocationError('Location permission denied. Allow location access in your browser settings and try again.');
+        } else if (error.code === 2) {
+          setLocationError('Your location is unavailable. Enable location services and try again.');
+        } else if (error.code === 3) {
+          setLocationError('Location request timed out. Try again.');
+        } else {
+          setLocationError('Unable to access your location. Try again.');
+        }
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 10000
+      }
+    );
   };
 
   // Fallback zones if APIs fail

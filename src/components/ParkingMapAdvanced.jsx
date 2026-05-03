@@ -24,6 +24,26 @@ const ParkingMap = ({
   const defaultCenter = currentLocation || { lat: 43.4516, lng: -80.4925 };
   const defaultZoom = 14;
 
+  const isValidGeoJsonGeometry = (geometry) => {
+    if (!geometry || !geometry.type || !geometry.coordinates) return false;
+
+    const validateCoords = (coords) => Array.isArray(coords) && coords.length > 0;
+
+    switch (geometry.type) {
+      case 'Point':
+        return Array.isArray(geometry.coordinates) && geometry.coordinates.length === 2;
+      case 'LineString':
+        return validateCoords(geometry.coordinates);
+      case 'MultiLineString':
+      case 'Polygon':
+        return validateCoords(geometry.coordinates) && validateCoords(geometry.coordinates[0]);
+      case 'MultiPolygon':
+        return validateCoords(geometry.coordinates) && validateCoords(geometry.coordinates[0]) && validateCoords(geometry.coordinates[0][0]);
+      default:
+        return false;
+    }
+  };
+
   const normalizeGeometry = (geometry) => {
     if (!geometry || !geometry.type) return null;
 
@@ -49,7 +69,11 @@ const ParkingMap = ({
       };
     }
 
-    return geometry;
+    if (isValidGeoJsonGeometry(geometry)) {
+      return geometry;
+    }
+
+    return null;
   };
 
   const getZoneColor = (type) => {
@@ -397,7 +421,7 @@ const ParkingMap = ({
 
     console.log('[Map] Updating map with', parkingZones.length, 'zones');
 
-    const features = parkingZones.map((zone) => {
+    const features = parkingZones.reduce((acc, zone) => {
       const delta = 0.0012;
       const rawGeometry = zone.geometry || {
         type: 'LineString',
@@ -414,7 +438,12 @@ const ParkingMap = ({
         ]
       };
 
-      return {
+      if (!isValidGeoJsonGeometry(geometry)) {
+        console.warn('[Map] Skipping invalid geometry for zone', zone.id, zone.name, rawGeometry);
+        return acc;
+      }
+
+      acc.push({
         type: 'Feature',
         geometry,
         properties: {
@@ -429,8 +458,9 @@ const ParkingMap = ({
           lat: zone.lat,
           lng: zone.lng
         }
-      };
-    });
+      });
+      return acc;
+    }, []);
 
     console.log('[Map] Setting map data with', features.length, 'features');
     
